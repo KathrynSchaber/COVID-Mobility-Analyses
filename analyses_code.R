@@ -20,11 +20,13 @@ library(maptools)
 library(rgeos)
 ##
 ####### read in data #####
-data2 <- read.csv("data.csv", sep=",", header=TRUE)
-##### ##### ##### ##### TIME FX GAM ##### ##### ##### ##### ##### 
-mod1 <- bam(rel_trips_from_oct2 ~  s(time_num) + s(weekday, bs="cc", k=7), 
+data2 <- read.csv("data.csv", sep=",", header=TRUE, stringsAsFactors=TRUE)
+data2$NPI_count <- as.factor(as.character(data2$NPI_count))
+##### ##### ##### ##### equation 1 -- TIME FX GAM ##### ##### ##### ##### ##### 
+mod1 <- bam(rel_trips ~  s(time_num) + s(weekday, bs="cc", k=7), 
             data=data2, method="REML",
             knots=list(weekday=c(1,7)))
+##### ##### ##### ##### equation 2 -- residuals ##### ##### ##### ##### ##### 
 data2$resid <- residuals(mod1)
 ##
 ##### plot #####
@@ -84,7 +86,8 @@ gt$layout$clip[gt$layout$name == "panel"] <- "off"
 
 grid.draw(gt)
 
-############## full date range residual effects ##############
+##### ##### ##### ##### equation 3 -- linear models ##### ##### ##### ##### ##### 
+##### full date range ##############
 data2bb <- data2[which(!(is.na(data2$zip_median_hh_income_cat_by_city))),]
 
 mod0_region <- glm(resid ~ region, data=data2bb)
@@ -112,7 +115,7 @@ AICctab(mod0_city,
         mod0_popdens,mod0_land,
         mod0_income,
         mod0_dist,weights=TRUE)
-############## pandemic phase residual effects ##############
+##### pandemic phase ##############
 data2_pan <- droplevels(data2[which(data2$date_period3 == "mid March - mid May"),])
 
 data2_panbb <- data2_pan[which(!(is.na(data2_pan$zip_median_hh_income_cat_by_city))),]
@@ -143,7 +146,7 @@ AICctab(mod_pan0_city,
         mod_pan0_income,
         mod_pan0_dist,mod_pan0_npi,weights=TRUE)
 
-############## rebound phase residual effects ##############
+##### rebound phase ##############
 data2_reb <- droplevels(data2[which(data2$date_period3 == "mid May - end July"),])
 
 data2_rebbb <- data2_reb[which(!(is.na(data2_reb$zip_median_hh_income_cat_by_city))),]
@@ -175,7 +178,7 @@ AICctab(mod_reb0_city,
         mod_reb0_income,
         mod_reb0_dist,mod_reb0_npi,weights=TRUE)
 
-############## stable phase residual effects ##############
+##### stable phase ##############
 data2_sta <- droplevels(data2[which(data2$date_period3 == "beg August - end Sept"),])
 
 data2_stabb <- data2_sta[which(!(is.na(data2_sta$zip_median_hh_income_cat_by_city))),]
@@ -207,8 +210,7 @@ AICctab(mod_sta0_city,
         mod_sta0_income,
         mod_sta0_dist,mod_sta0_npi,weights=TRUE)
 
-############## 
-###### univariate plots ######
+## plot ######
 mod0_city <- glm(resid ~ 0 + city, data=data2bb)
 mod_pan0_city <- glm(resid ~ 0 + city, data=data2_panbb)
 mod_reb0_city <- glm(resid ~ 0 + city, data=data2_rebbb)
@@ -226,6 +228,7 @@ names(mod_pred_overall4)[11] <- "fit_sta"
 
 mod_pred3 <- with(data2bb,expand.grid(city=levels(city), date_period=c(levels(date_period3))))
 
+mod_pred3$fit <- numeric(length=nrow(mod_pred3))
 mod_pred3$fit[which(mod_pred3$date_period == "mid March - mid May")] <- mod_pred_overall4$fit_pan
 mod_pred3$fit[which(mod_pred3$date_period == "mid May - end July")] <- mod_pred_overall4$fit_reb
 mod_pred3$fit[which(mod_pred3$date_period == "beg August - end Sept")] <- mod_pred_overall4$fit_sta
@@ -284,7 +287,7 @@ gt$layout$clip[gt$layout$name == "panel"] <- "off"
 
 grid.draw(gt)
 
-###### univariate plots ######
+## plot ######
 
 mod0_popdens_city <- glm(resid ~ zip_pop_dens_cat_by_city, data=data2bb)
 mod0_land_city <- glm(resid ~ zip_land_area_cat_by_city, data=data2bb)
@@ -492,8 +495,8 @@ p <- ggplot() +
 p
 
 
-############## 
-##### city map ####
+##############
+##### ##### ##### ##### city map ##### ##### ##### ##### ##### 
 bound <- readOGR("city_bound.shp", layer = "city_bound")
 bound <- spTransform(bound, CRS("+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs"))
 
@@ -565,7 +568,7 @@ map <- ggplot() +
 map
 
 ##
-#### combined plot #####
+#### Figure 1 -- combined plots #####
 #####
 df2=data.frame(y=c(rep(3.5,3)),x=c(as.numeric(as.Date("2020-04-13")),
                                    as.numeric(as.Date("2020-06-22")),
@@ -696,14 +699,12 @@ grid.arrange(arrangeGrob(gt_map,top=grid::textGrob("a", x = 0.05, hjust = 0,gp=g
              layout_matrix = lay)
 ############## 
 ############## 
-######
-############## 
-##### ##### ##### ##### TIME + CITY FX GAM ##### ##### ##### ##### ##### 
+##### ##### ##### ##### equation 4 -- TIME + CITY FX GAM ##### ##### ##### ##### ##### 
 data2$city <- as.factor(data2$city)
-mod2 <- bam(rel_trips_from_oct2 ~  s(time_num, m=2) + s(time_num, city, bs="fs", m=2) + s(weekday, bs="cc", k=7), 
+mod2 <- bam(rel_trips ~  s(time_num, m=2) + s(time_num, city, bs="fs", m=2) + s(weekday, bs="cc", k=7), 
             data=data2, method="REML",
             knots=list(weekday=c(1,7)))
-
+##### ##### ##### ##### equation 5 -- residuals ##### ##### ##### ##### ##### 
 data2$resid_city <- residuals(mod2)
 ###
 ##### plot #####
@@ -799,7 +800,8 @@ gt$layout$clip[gt$layout$name == "panel"] <- "off"
 grid.draw(gt)
 
 ##
-##### ##### zipcode level fx on residuals ##### ##### 
+##### ##### ##### ##### equation 6 -- linear models ##### ##### ##### ##### ##### 
+##### full date range ##############
 data2b <- droplevels(data2[which(!(is.na(data2$zip_median_hh_income_cat_by_city))),])
 mod_dist_city_short <- glm(resid_city ~ zip_dist_city_bord_cat_by_city, data=data2b)
 mod_popdens_city_short <- glm(resid_city ~ zip_pop_dens_cat_by_city, data=data2b)
@@ -816,13 +818,12 @@ mod_npi <- glm(resid_city ~ NPI_count, data=data2b)
 
 AICctab(mod_dist_short,mod_popdens_short,mod_land_short,mod_income_short,mod_npi,weights=TRUE)
 
-#### city specfic fx for pop dens ######
+#### city specfic fx for pop dens ##
 mod_city_popdens_city_short <- glm(resid_city ~ zip_pop_dens_cat_by_city*city, data=data2b)
 mod_time_popdens_city_short <- glm(resid_city ~ zip_pop_dens_cat_by_city*date_period3, data=data2b)
 AICctab(mod_dist_city_short,mod_popdens_city_short,mod_land_city_short,mod_income_city_short,mod_time_popdens_city_short,mod_city_popdens_city_short,weights=TRUE)
 
-############## 
-############## pandemic phase residual effects ##############
+##### pandemic phase ##############
 data2_pan <- droplevels(data2[which(data2$date_period3 == "mid March - mid May"),])
 
 data2_panb <- droplevels(data2_pan[which(!(is.na(data2_pan$zip_median_hh_income_cat_by_city))),])
@@ -842,12 +843,11 @@ mod_pan_npi <- glm(resid_city ~ NPI_count, data=data2_panb)
 
 AICctab(mod_pan_dist_short,mod_pan_popdens_short,mod_pan_land_short,mod_pan_income_short,mod_pan_npi,weights=TRUE)
 
-#### city specfic fx for pop dens ######
+#### city specfic fx for pop dens ###
 mod_pan_city_popdens_city_short <- glm(resid_city ~ zip_pop_dens_cat_by_city*city, data=data2_panb)
 AICctab(mod_pan_dist_city_short,mod_pan_popdens_city_short,mod_pan_land_city_short,mod_pan_income_city_short,mod_pan_city_popdens_city_short,weights=TRUE)
 
-############## 
-############## rebound phase residual effects ##############
+##### rebound phase ##############
 data2_reb <- droplevels(data2[which(data2$date_period3 == "mid May - end July"),])
 
 data2_rebb <- droplevels(data2_reb[which(!(is.na(data2_reb$zip_median_hh_income_cat_by_city))),])
@@ -867,12 +867,11 @@ mod_reb_npi <- glm(resid_city ~ NPI_count, data=data2_rebb)
 
 AICctab(mod_reb_dist_short,mod_reb_popdens_short,mod_reb_land_short,mod_reb_income_short,mod_reb_npi,weights=TRUE)
 
-#### city specfic fx for pop dens ######
+#### city specfic fx for pop dens ###
 mod_reb_city_popdens_city_short <- glm(resid_city ~ zip_pop_dens_cat_by_city*city, data=data2_rebb)
 AICctab(mod_reb_dist_city_short,mod_reb_popdens_city_short,mod_reb_land_city_short,mod_reb_income_city_short,mod_reb_city_popdens_city_short,weights=TRUE)
 
-############## 
-############## stable phase residual effects ##############
+##### stable phase ##############
 data2_sta <- droplevels(data2[which(data2$date_period3 == "beg August - end Sept"),])
 
 data2_stab <- droplevels(data2_sta[which(!(is.na(data2_sta$zip_median_hh_income_cat_by_city))),])
@@ -892,12 +891,11 @@ mod_sta_npi <- glm(resid_city ~ NPI_count, data=data2_stab)
 
 AICctab(mod_sta_dist_short,mod_sta_popdens_short,mod_sta_land_short,mod_sta_income_short,mod_sta_npi,weights=TRUE)
 
-#### city specfic fx for dist ######
+#### city specfic fx for dist ##
 mod_sta_city_dist_city_short <- glm(resid_city ~ zip_dist_city_bord_cat_by_city*city, data=data2_stab)
 AICctab(mod_sta_dist_city_short,mod_sta_popdens_city_short,mod_sta_land_city_short,mod_sta_income_city_short,mod_sta_city_dist_city_short,weights=TRUE)
 
-############## 
-###### univariate plots ######
+#### Figure 2 -- plot #####
 mod_dist_city_short <- glm(resid_city ~ zip_dist_city_bord_cat_by_city, data=data2b)
 mod_popdens_city_short <- glm(resid_city ~ zip_pop_dens_cat_by_city, data=data2b)
 mod_land_city_short <- glm(resid_city ~ zip_land_area_cat_by_city, data=data2b)
@@ -1105,8 +1103,8 @@ p <- ggplot() +
         strip.text.x = element_text(size=17))
 p
 
-############## 
-## city-specific effects pandemic ####
+##### ##### ##### ##### equation 7 -- city-specific linear models ##### ##### ##### ##### ##### 
+##### pandemic phase ####
 mod_pred <- with(data2_panb,expand.grid(time_num=c(seq(from=min(time_num), to=max(time_num), by=1)),
                                         city=levels(city),zip_pop_dens_cat_by_city=levels(zip_pop_dens_cat_by_city)))
 mod_pred$weekday <- as.numeric(factor(weekdays(as.Date(mod_pred$time_num, origin="1970-01-01")), levels=c("Sunday","Monday","Tuesday", "Wednesday","Thursday","Friday","Saturday")))
@@ -1188,7 +1186,7 @@ gt1se$layout$clip[gt1se$layout$name == "panel"] <- "off"
 
 grid.draw(gt1se)
 
-##### short plot #####
+## plot #####
 mod_pred_pan0_short <- droplevels(mod_pred_pan0[which(mod_pred_pan0$city %in% c("Detroit_MI", "SiouxFalls_SD", "Baltimore_MD", "Los_Angeles_CA", "SanAntonio_TX", "Charlotte_NC")),])
 
 p <- ggplot() +
@@ -1245,8 +1243,7 @@ gt1shortse$layout$clip[gt1shortse$layout$name == "panel"] <- "off"
 grid.draw(gt1shortse)
 
 ##
-############## 
-## city-specific effects rebound ####
+#####  rebound phase ####
 mod_pred <- with(data2_rebb,expand.grid(time_num=c(seq(from=min(time_num), to=max(time_num), by=1)),
                                         city=levels(city),zip_pop_dens_cat_by_city=levels(zip_pop_dens_cat_by_city)))
 mod_pred$weekday <- as.numeric(factor(weekdays(as.Date(mod_pred$time_num, origin="1970-01-01")), levels=c("Sunday","Monday","Tuesday", "Wednesday","Thursday","Friday","Saturday")))
@@ -1328,7 +1325,7 @@ gt2se$layout$clip[gt2se$layout$name == "panel"] <- "off"
 
 grid.draw(gt2se)
 
-##### short plot #####
+## plot #####
 mod_pred_reb0_short <- droplevels(mod_pred_reb0[which(mod_pred_reb0$city %in% c("Detroit_MI", "SiouxFalls_SD", "Baltimore_MD", "Los_Angeles_CA", "SanAntonio_TX", "Charlotte_NC")),])
 
 p <- ggplot() +
@@ -1384,8 +1381,7 @@ gt2shortse$layout$clip[gt2shortse$layout$name == "panel"] <- "off"
 
 grid.draw(gt2shortse)
 
-############## 
-## city-specific effects stable ####
+#####  stable phase ####
 mod_pred <- with(data2_stab,expand.grid(time_num=c(seq(from=min(time_num), to=max(time_num), by=1)),
                                         city=levels(city),zip_pop_dens_cat_by_city=levels(zip_pop_dens_cat_by_city)))
 mod_pred$weekday <- as.numeric(factor(weekdays(as.Date(mod_pred$time_num, origin="1970-01-01")), levels=c("Sunday","Monday","Tuesday", "Wednesday","Thursday","Friday","Saturday")))
@@ -1501,7 +1497,7 @@ gt3se$layout$clip[gt3se$layout$name == "panel"] <- "off"
 
 grid.draw(gt3se)
 
-##### short plot #####
+## plot #####
 mod_pred_sta0_short <- droplevels(mod_pred_all0[which(mod_pred_all0$city %in% c("Detroit_MI", "SiouxFalls_SD", "Baltimore_MD", "Los_Angeles_CA", "SanAntonio_TX", "Charlotte_NC")),])
 
 p <- ggplot() +
@@ -1558,7 +1554,7 @@ gt3shortse$layout$clip[gt3shortse$layout$name == "panel"] <- "off"
 grid.draw(gt3shortse)
 
 ############## 
-#### plot together ####
+#### Figure 3 -- combined plots #####
 lay <- rbind(c(1,1,2,2),
              c(4,3,3,4))
 
